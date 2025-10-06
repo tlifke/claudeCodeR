@@ -273,12 +273,15 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
         return()
       }
 
-      if (values$query_in_progress) {
+      query_in_progress <- shiny::isolate(values$query_in_progress)
+      acp_session_id <- shiny::isolate(values$acp_session_id)
+
+      if (query_in_progress) {
         shiny::showNotification("Please wait for current query to complete", type = "warning")
         return()
       }
 
-      if (is.null(values$acp_session_id)) {
+      if (is.null(acp_session_id)) {
         shiny::showNotification("Session not ready", type = "warning")
         return()
       }
