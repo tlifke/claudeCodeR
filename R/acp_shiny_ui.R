@@ -211,21 +211,20 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
       }
 
       if (!is.null(values$ws_client) && !values$connected) {
-        if (values$ws_client$is_connected()) {
+        ws_client <- values$ws_client
+        if (ws_client$is_connected()) {
         values$connected <- TRUE
         message("WebSocket connected, initializing ACP...")
 
-        ws_client_copy <- values$ws_client
-
         promises::then(
-          acp_initialize(ws_client_copy, list(
+          acp_initialize(ws_client, list(
             name = "RStudio Claude Code",
             version = "0.3.0-acp"
           )),
           onFulfilled = function(result) {
             message("ACP initialized, creating session...")
             promises::then(
-              acp_create_session(ws_client_copy),
+              acp_create_session(ws_client),
               onFulfilled = function(session_result) {
                 message("Session created: ", session_result$sessionId)
                 shiny::isolate({
@@ -353,15 +352,18 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
     })
 
     session$onSessionEnded(function() {
-      if (!is.null(values$ws_client)) {
-        if (!is.null(values$acp_session_id)) {
+      client <- shiny::isolate(values$ws_client)
+      session_id <- shiny::isolate(values$acp_session_id)
+
+      if (!is.null(client)) {
+        if (!is.null(session_id)) {
           tryCatch({
-            acp_cancel_session(values$ws_client, values$acp_session_id)
+            acp_cancel_session(client, session_id)
           }, error = function(e) {
             message("Error canceling session: ", e$message)
           })
         }
-        values$ws_client$close()
+        client$close()
       }
     })
   }
