@@ -1,0 +1,4 @@
+Name: Claude ACP Agent
+Description: Open an interactive AI coding assistant using Agent Client Protocol
+Binding: claude_acp_addin
+Interactive: true

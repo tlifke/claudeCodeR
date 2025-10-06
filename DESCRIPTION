@@ -1,0 +1,28 @@
+Package: claudeCodeR
+Type: Package
+Title: Claude Code Integration for RStudio
+Version: 0.2.0
+Authors@R: person("Tyler", "Lifke", email = "your.email@example.com", role = c("aut", "cre"))
+Description: Provides Claude Code AI assistant integration for RStudio via the Claude Agent SDK.
+    Includes an interactive Shiny gadget interface for chatting with Claude and applying
+    code modifications directly in the RStudio editor. Supports both Anthropic API and
+    AWS Bedrock authentication.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenVersion: 7.2.0
+Depends:
+    R (>= 4.0.0)
+Imports:
+    processx (>= 3.8.0),
+    jsonlite (>= 1.8.0),
+    shiny (>= 1.7.0),
+    miniUI (>= 0.1.1),
+    rstudioapi (>= 0.14),
+    httr (>= 1.4.7),
+    curl (>= 5.0.0),
+    later (>= 1.3.0),
+    callr (>= 3.7.0)
+Suggests:
+    testthat (>= 3.0.0)
+SystemRequirements: Python (>= 3.10), Claude Agent SDK

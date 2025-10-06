@@ -1,0 +1,418 @@
+# RStudio Claude Code Addin - SDK Migration Implementation Plan
+
+## Project Goal
+Migrate from custom ACP protocol implementation to Claude Agent SDK (Python), solving the critical tool execution bug while maintaining full RStudio integration.
+
+## Problem Being Solved
+Current implementation has architectural mismatch between ACP's synchronous request-response pattern and Shiny's async event loop. Result: permissions work but tools (file writes, bash commands) never execute. See ISSUES.md for full details.
+
+## Solution Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ RStudio Addin (R)                                            │
+│  ├─ Shiny UI (viewer pane)                                   │
+│  ├─ Editor context capture (rstudioapi)                      │
+│  └─ Code insertion (rstudioapi)                              │
+└────────────────────┬────────────────────────────────────────┘
+                     │ HTTP/SSE
+                     │ (httr/curl)
+┌────────────────────▼────────────────────────────────────────┐
+│ Python FastAPI Server (port 8765)                            │
+│  ├─ /initialize - Start session with credentials             │
+│  ├─ /query - Send prompt, stream via SSE                     │
+│  ├─ /shutdown - Clean shutdown                               │
+│  └─ /health - Health check                                   │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│ Claude Agent SDK (Python)                                    │
+│  ├─ Agent loop (gather → action → verify)                    │
+│  ├─ Permission hooks (auto-approval)                         │
+│  ├─ Tool execution (Read, Write, Bash, etc.)                 │
+│  └─ Session management                                       │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────────┐
+│ Claude API / AWS Bedrock / Vertex AI                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Why This Solves The Problem
+
+1. **Tool execution in separate process**: SDK runs in Python process, not blocked by Shiny's event loop
+2. **No manual protocol handling**: SDK manages JSON-RPC, promises, and message passing
+3. **Proven async model**: Python's async/await handles permissions correctly
+4. **HTTP decouples concerns**: Shiny just sends requests and displays responses
+
+## Implementation Checklist
+
+### ✅ Phase 1: Project Setup & Cleanup
+
+- [x] Create .claude/tasks file
+- [ ] Remove obsolete files:
+  - [ ] R/acp_client.R (custom ACP client - no longer needed)
+  - [ ] R/acp_client_methods.R (ACP method handlers - replaced by SDK)
+  - [ ] R/jsonrpc.R (JSON-RPC protocol - SDK handles this)
+  - [ ] test_acp_protocol.R (obsolete test)
+  - [ ] test_handlers.R (obsolete test)
+  - [ ] test_acp.R (obsolete test)
+  - [ ] test_streaming.R (obsolete test)
+- [ ] Archive ISSUES.md → ISSUES.archive.md (problem solved!)
+
+### ⏳ Phase 2: Python SDK Server
+
+- [ ] Create python/ directory structure
+- [ ] Create python/pyproject.toml:
+  ```toml
+  [project]
+  name = "claude-rstudio-server"
+  version = "0.1.0"
+  requires-python = ">=3.10"
+  dependencies = [
+      "claude-agent-sdk>=0.1.0",
+      "fastapi>=0.115.0",
+      "uvicorn[standard]>=0.32.0",
+      "boto3>=1.35.0",
+      "python-dotenv>=1.0.0"
+  ]
+  ```
+
+- [ ] Create python/requirements.txt (for non-uv users)
+- [ ] Create python/sdk_server.py:
+  - [ ] FastAPI app initialization
+  - [ ] /initialize endpoint (POST)
+    - Accept: working_dir, auth_method, credentials
+    - Start Claude Agent SDK session
+    - Configure permission hooks (auto-approval)
+    - Return: session_id, status
+  - [ ] /query endpoint (POST, SSE streaming)
+    - Accept: prompt, context (editor state)
+    - Inject RStudio context into prompt
+    - Stream agent responses via SSE
+    - Return: final response, tool_calls_executed
+  - [ ] /shutdown endpoint (POST)
+    - Clean SDK shutdown
+    - Return: status
+  - [ ] /health endpoint (GET)
+    - Check SDK status
+    - Return: status, working_dir, auth_method
+  - [ ] Permission hook implementation:
+    ```python
+    async def auto_approve_hook(input_data, tool_use_id, context):
+        # Auto-approve all tools for RStudio integration
+        return {"hookSpecificOutput": {"permissionDecision": "allow"}}
+    ```
+  - [ ] Error handling and logging
+
+- [ ] Create python/aws_config.py:
+  - [ ] detect_aws_credentials() - Check for AWS env vars, SSO, etc.
+  - [ ] refresh_aws_sso(profile) - Run aws sso login
+  - [ ] validate_credentials() - Check if credentials are valid/fresh
+  - [ ] get_bedrock_config() - Return Bedrock model config
+
+### ⏳ Phase 3: R SDK Client
+
+- [ ] Create R/sdk_client.R:
+  ```r
+  ClaudeSDKClient <- R6::R6Class("ClaudeSDKClient",
+    public = list(
+      initialize = function(working_dir, auth_method, credentials) {
+        # POST to /initialize
+      },
+      query = function(prompt, context = NULL) {
+        # POST to /query with SSE streaming
+        # Return streaming handler
+      },
+      shutdown = function() {
+        # POST to /shutdown
+      },
+      is_healthy = function() {
+        # GET /health
+      }
+    ),
+    private = list(
+      base_url = "http://localhost:8765",
+      session_id = NULL,
+      handle_sse_stream = function(response) {
+        # Parse SSE events
+        # Yield chunks for Shiny to display
+      }
+    )
+  )
+  ```
+
+- [ ] Create R/config.R:
+  ```r
+  detect_auth_method <- function() {
+    # Check for ANTHROPIC_API_KEY
+    # Check for CLAUDE_CODE_USE_BEDROCK
+    # Check for AWS credentials
+    # Return: list(method = "api_key"|"bedrock"|"vertex", credentials = ...)
+  }
+
+  get_credentials <- function(method) {
+    # Extract credentials for given method
+  }
+
+  validate_aws_profile <- function(profile) {
+    # Check if AWS profile is valid
+    # Prompt for SSO login if needed
+  }
+
+  prompt_for_aws_login <- function() {
+    # Show RStudio dialog for AWS profile
+    # Run aws sso login --profile <profile>
+  }
+  ```
+
+### ⏳ Phase 4: Update Existing Files
+
+- [ ] Update R/addin.R:
+  ```r
+  claude_code_addin <- function() {
+    if (!rstudioapi::isAvailable()) {
+      stop("This addin requires RStudio")
+    }
+
+    # Detect authentication
+    auth <- detect_auth_method()
+    if (is.null(auth)) {
+      stop("No authentication found. Set ANTHROPIC_API_KEY or configure AWS Bedrock.")
+    }
+
+    # Validate AWS credentials if using Bedrock
+    if (auth$method == "bedrock") {
+      validate_aws_profile(auth$profile)
+    }
+
+    # Launch Python SDK server
+    sdk_process <- start_sdk_server(
+      working_dir = get_working_dir(),
+      auth = auth
+    )
+
+    # Wait for server to be healthy
+    wait_for_health(timeout = 10)
+
+    # Launch Shiny UI
+    shiny::runGadget(
+      claude_sdk_ui(),
+      claude_sdk_server,
+      viewer = shiny::paneViewer(minHeight = 400)
+    )
+
+    # Cleanup on exit
+    sdk_process$kill()
+  }
+
+  start_sdk_server <- function(working_dir, auth) {
+    # Build environment variables
+    env_vars <- build_env_vars(auth)
+
+    # Launch via uvx (Python 3.12 compatible)
+    processx::process$new(
+      "uvx",
+      c("--python", "3.12", "run",
+        system.file("python/sdk_server.py", package = "claudeACP")),
+      env = env_vars,
+      stdout = "|",
+      stderr = "|"
+    )
+  }
+
+  wait_for_health <- function(timeout = 10) {
+    # Poll /health until ready or timeout
+  }
+  ```
+
+- [ ] Update R/shiny_ui.R:
+  - [ ] Remove ACP-specific controls (agent_type selector - only Claude now)
+  - [ ] Simplify permission mode (just show current mode, no complex options)
+  - [ ] Add AWS profile indicator (if using Bedrock)
+  - [ ] Add "Refresh Credentials" button for AWS users
+  - [ ] Keep chat UI structure (works well)
+  - [ ] Update server logic:
+    - [ ] Initialize ClaudeSDKClient instead of ACPClient
+    - [ ] Handle SSE streaming responses
+    - [ ] Remove manual permission handling (SDK handles it)
+    - [ ] Add credential refresh handler
+
+### ⏳ Phase 5: Packaging & Dependencies
+
+- [ ] Update DESCRIPTION:
+  ```
+  Package: claudeCodeR
+  Title: Claude Code Integration for RStudio
+  Version: 0.2.0
+  Depends: R (>= 4.0.0)
+  Imports:
+      shiny (>= 1.7.0),
+      miniUI (>= 0.1.1),
+      rstudioapi (>= 0.14),
+      processx (>= 3.8.0),
+      httr (>= 1.4.7),
+      jsonlite (>= 1.8.0)
+  Suggests:
+      testthat (>= 3.0.0)
+  SystemRequirements: Python (>= 3.10), uv
+  ```
+
+- [ ] Create .Rbuildignore:
+  ```
+  ^\.claude$
+  ^python$
+  ^.*\.md$
+  ^test_.*\.R$
+  ^examples$
+  ```
+
+- [ ] Create inst/python/ directory
+- [ ] Copy Python files to inst/python/:
+  - [ ] sdk_server.py
+  - [ ] aws_config.py
+  - [ ] pyproject.toml
+  - [ ] requirements.txt
+
+### ⏳ Phase 6: Documentation
+
+- [ ] Update README.md:
+  - [ ] New architecture diagram (show HTTP/SSE flow)
+  - [ ] Updated installation steps:
+    - [ ] R package installation
+    - [ ] Python dependencies (uv recommended)
+    - [ ] Authentication setup (API key OR Bedrock)
+  - [ ] AWS Bedrock setup section:
+    - [ ] Environment variables needed
+    - [ ] SSO login workflow
+    - [ ] Profile configuration
+  - [ ] Remove ACP protocol details (implementation detail now)
+  - [ ] Update usage examples
+  - [ ] Add troubleshooting section
+
+- [ ] Create CHANGELOG.md:
+  - [ ] Document v0.2.0 changes
+  - [ ] Note breaking changes from v0.1.0
+
+- [ ] Update or remove ISSUES.md:
+  - [ ] Move to ISSUES.archive.md
+  - [ ] Add note: "Resolved in v0.2.0 by migrating to Claude Agent SDK"
+
+### ⏳ Phase 7: Testing
+
+- [ ] Create tests/testthat/test-sdk-client.R:
+  - [ ] Mock HTTP server for testing
+  - [ ] Test initialize()
+  - [ ] Test query() with mocked SSE stream
+  - [ ] Test shutdown()
+  - [ ] Test error handling
+
+- [ ] Create tests/testthat/test-config.R:
+  - [ ] Test detect_auth_method() with different env setups
+  - [ ] Test get_credentials()
+  - [ ] Test AWS profile validation
+
+- [ ] Create python/test_server.py:
+  - [ ] Test FastAPI endpoints
+  - [ ] Test SDK initialization
+  - [ ] Test permission hooks
+  - [ ] Test AWS credential detection
+
+- [ ] Manual testing checklist:
+  - [ ] Test 1: Anthropic API key authentication
+    - [ ] Set ANTHROPIC_API_KEY
+    - [ ] Launch addin
+    - [ ] Send simple prompt
+    - [ ] Verify streaming works
+    - [ ] Verify file writes execute
+    - [ ] Verify bash commands execute
+
+  - [ ] Test 2: AWS Bedrock with SSO
+    - [ ] Set CLAUDE_CODE_USE_BEDROCK=1
+    - [ ] Set AWS_REGION=us-east-1
+    - [ ] Set AWS_PROFILE=<profile>
+    - [ ] Launch addin (should prompt for SSO if needed)
+    - [ ] Verify authentication works
+    - [ ] Test tool execution
+
+  - [ ] Test 3: AWS Bedrock with direct credentials
+    - [ ] Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    - [ ] Set CLAUDE_CODE_USE_BEDROCK=1
+    - [ ] Launch addin
+    - [ ] Verify works without SSO prompt
+
+  - [ ] Test 4: Editor integration
+    - [ ] Open R file in editor
+    - [ ] Select code
+    - [ ] Ask agent to modify it
+    - [ ] Verify context is captured
+    - [ ] Verify code changes apply correctly
+
+  - [ ] Test 5: Credential refresh
+    - [ ] Start session with valid credentials
+    - [ ] Invalidate credentials (expire token)
+    - [ ] Click "Refresh Credentials"
+    - [ ] Verify session continues
+
+  - [ ] Test 6: Error handling
+    - [ ] Launch with no credentials
+    - [ ] Launch with invalid credentials
+    - [ ] Kill Python server mid-session
+    - [ ] Send invalid prompts
+    - [ ] Verify graceful error messages
+
+## Success Criteria
+
+✅ Tools execute correctly (file writes, bash commands)
+✅ Streaming responses display in Shiny UI
+✅ RStudio editor integration works (context capture, code insertion)
+✅ AWS Bedrock authentication works (SSO + direct credentials)
+✅ Anthropic API key authentication works
+✅ Credential refresh works for AWS users
+✅ No R session crashes or hangs
+✅ Simpler codebase than v0.1.0 (estimate: ~500 lines removed)
+
+## Migration Notes
+
+### What's Removed
+- All ACP protocol implementation (~600 lines)
+- JSON-RPC message handling
+- Promise-based async architecture in R
+- Manual permission request/response handling
+- Complex notification handlers
+
+### What's Added
+- Python SDK server (~300 lines)
+- Simple HTTP client in R (~150 lines)
+- AWS credential management (~100 lines)
+- Better error handling and logging
+
+### Net Result
+- ~450 lines removed
+- More robust (SDK handles edge cases)
+- Easier to maintain (no protocol implementation)
+- Better UX (tools actually work!)
+
+## Timeline Estimate
+
+- Phase 1 (Cleanup): 30 min
+- Phase 2 (Python SDK): 2-3 hours
+- Phase 3 (R Client): 1-2 hours
+- Phase 4 (Update Files): 1-2 hours
+- Phase 5 (Packaging): 30 min
+- Phase 6 (Documentation): 1 hour
+- Phase 7 (Testing): 2-3 hours
+
+Total: ~8-12 hours of focused work
+
+## References
+
+- Claude Agent SDK: https://docs.claude.com/en/api/agent-sdk/overview
+- Python SDK: https://github.com/anthropics/claude-agent-sdk-python
+- AWS Bedrock: https://docs.claude.com/en/docs/claude-code/amazon-bedrock
+- FastAPI: https://fastapi.tiangolo.com/
+- Server-Sent Events: https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
+
+## Current Progress
+
+[Track using TodoWrite tool - see todo list]
