@@ -91,12 +91,18 @@ claude_code_acp_addin <- function(agent = "claude") {
   options(claude_code_acp_shiny_process = shiny_bg)
   options(claude_code_acp_agent = agent)
 
-  Sys.sleep(2)
+  Sys.sleep(3)
 
   if (!shiny_bg$is_alive()) {
     stderr_out <- shiny_bg$read_error()
+    stdout_out <- shiny_bg$read_output()
     stop_websocket_proxy(proxy_process)
-    stop("Shiny app failed to start: ", stderr_out)
+    error_msg <- paste0(
+      "Shiny app failed to start\n\n",
+      "STDERR:\n", stderr_out, "\n\n",
+      "STDOUT:\n", stdout_out
+    )
+    stop(error_msg)
   }
 
   viewer_url <- paste0("http://127.0.0.1:", shiny_port)
