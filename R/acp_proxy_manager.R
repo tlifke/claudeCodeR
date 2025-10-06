@@ -18,11 +18,13 @@ start_websocket_proxy <- function(agent = "claude", port = 8766) {
   message("  Port: ", port)
   message("  WebSocket URL: ws://localhost:", port)
 
+  agent_cmd_parts <- strsplit(agent_cmd, "\\s+")[[1]]
+
   proc <- processx::process$new(
     websocketd_path,
     args = c(
       paste0("--port=", port),
-      agent_cmd
+      agent_cmd_parts
     ),
     stdout = "|",
     stderr = "|",
