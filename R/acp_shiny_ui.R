@@ -130,6 +130,8 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
     shiny::observe({
       connection_check()
 
+      later::run_now()
+
       if (!is.null(values$ws_client) && values$connected) {
         return()
       }
