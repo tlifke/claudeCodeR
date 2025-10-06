@@ -37,19 +37,6 @@ session_state = SessionState()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Claude RStudio SDK Server starting...", file=sys.stderr)
-
-    # Log SDK location for debugging
-    with open("/tmp/claude_sdk_location.log", "w") as f:
-        f.write(f"SDK query.py loaded from: {query_module.__file__}\n")
-        f.write(f"Python executable: {sys.executable}\n")
-        # Check if our patch is in the file
-        with open(query_module.__file__, 'r') as source:
-            content = source.read()
-            if '"behavior": "allow"' in content:
-                f.write("✅ PATCH FOUND in source file\n")
-            else:
-                f.write("❌ PATCH NOT FOUND - still has old code\n")
-
     yield
     print("Claude RStudio SDK Server shutting down...", file=sys.stderr)
 
