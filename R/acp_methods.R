@@ -1,6 +1,6 @@
 acp_initialize <- function(client, client_info) {
   client$send_request("initialize", list(
-    protocolVersion = "0.2.0",
+    protocolVersion = 0.2,
     clientInfo = client_info,
     capabilities = list(
       filesystemAccess = TRUE,
