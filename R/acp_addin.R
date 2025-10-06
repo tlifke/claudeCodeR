@@ -91,7 +91,7 @@ claude_code_acp_addin <- function(agent = "claude") {
   options(claude_code_acp_shiny_process = shiny_bg)
   options(claude_code_acp_agent = agent)
 
-  Sys.sleep(3)
+  Sys.sleep(2)
 
   if (!shiny_bg$is_alive()) {
     stderr_out <- shiny_bg$read_error()
@@ -105,8 +105,38 @@ claude_code_acp_addin <- function(agent = "claude") {
     stop(error_msg)
   }
 
-  viewer_url <- paste0("http://127.0.0.1:", shiny_port)
-  rstudioapi::viewer(viewer_url)
+  message("Waiting for Shiny to be ready on port ", shiny_port, "...")
+  shiny_url <- paste0("http://127.0.0.1:", shiny_port)
+
+  shiny_ready <- FALSE
+  for (i in 1:20) {
+    ready <- tryCatch({
+      response <- httr::GET(shiny_url, httr::timeout(1))
+      httr::status_code(response) == 200
+    }, error = function(e) FALSE)
+
+    if (ready) {
+      shiny_ready <- TRUE
+      break
+    }
+    Sys.sleep(0.5)
+  }
+
+  if (!shiny_ready) {
+    stderr_out <- shiny_bg$read_error()
+    stdout_out <- shiny_bg$read_output()
+    stop_websocket_proxy(proxy_process)
+    shiny_bg$kill()
+    error_msg <- paste0(
+      "Shiny app failed to become ready\n\n",
+      "STDERR:\n", stderr_out, "\n\n",
+      "STDOUT:\n", stdout_out
+    )
+    stop(error_msg)
+  }
+
+  message("Shiny ready, opening viewer...")
+  rstudioapi::viewer(shiny_url)
 
   message(agent_config$name, " opened in viewer. Console is free.")
   message("To stop: Run claude_code_acp_stop()")
