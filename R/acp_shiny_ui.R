@@ -318,7 +318,13 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
       }
 
       message("Sending prompt to ACP agent...")
-      acp_send_prompt(values$ws_client, values$acp_session_id, full_prompt)
+
+      shiny::isolate({
+        ws_client_copy <- values$ws_client
+        session_id_copy <- values$acp_session_id
+      })
+
+      acp_send_prompt(ws_client_copy, session_id_copy, full_prompt)
     })
 
     output$chat_history <- shiny::renderUI({
