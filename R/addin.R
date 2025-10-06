@@ -1,4 +1,18 @@
-claude_code_addin <- function() {
+claude_code_addin <- function(background = TRUE) {
+  if (background) {
+    check_mode <- Sys.getenv("CLAUDECODER_MODE", "background")
+
+    if (check_mode == "blocking") {
+      claude_code_addin_blocking()
+    } else {
+      claude_code_addin_bg()
+    }
+  } else {
+    claude_code_addin_blocking()
+  }
+}
+
+claude_code_addin_blocking <- function() {
   if (!rstudioapi::isAvailable()) {
     stop("This addin requires RStudio")
   }
@@ -59,7 +73,7 @@ claude_code_addin <- function() {
   shiny::runGadget(
     claude_sdk_ui(auth_config),
     claude_sdk_server_factory(base_url, working_dir, auth_config, sdk_process),
-    viewer = shiny::browserViewer()#minHeight = 400)
+    viewer = shiny::browserViewer()
   )
 
   message("Shutting down SDK server...")
