@@ -63,15 +63,17 @@ claude_code_acp_addin <- function(agent = "claude") {
   message("WebSocket proxy ready")
   message("Starting Shiny app in background...")
 
+  working_dir <- getwd()
+
   shiny_bg <- callr::r_bg(
-    func = function(proxy_port, shiny_port, agent_name, pkg_path) {
+    func = function(proxy_port, shiny_port, agent_name, pkg_path, working_dir) {
       if (!is.null(pkg_path) && dir.exists(pkg_path)) {
         pkgload::load_all(pkg_path, export_all = FALSE, helpers = FALSE, quiet = TRUE)
       }
 
       app <- shiny::shinyApp(
         ui = claudeCodeR:::claude_acp_ui(agent_name),
-        server = claudeCodeR:::claude_acp_server_factory(proxy_port, agent_name)
+        server = claudeCodeR:::claude_acp_server_factory(proxy_port, agent_name, working_dir)
       )
 
       shiny::runApp(app, port = shiny_port, host = "127.0.0.1", launch.browser = FALSE)
@@ -80,7 +82,8 @@ claude_code_acp_addin <- function(agent = "claude") {
       proxy_port = proxy_port,
       shiny_port = shiny_port,
       agent_name = agent_config$name,
-      pkg_path = tryCatch(find.package("claudeCodeR"), error = function(e) NULL)
+      pkg_path = tryCatch(find.package("claudeCodeR"), error = function(e) NULL),
+      working_dir = working_dir
     ),
     supervise = TRUE,
     stdout = "|",

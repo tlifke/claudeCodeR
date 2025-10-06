@@ -26,9 +26,11 @@ claude_code_acp_addin_blocking <- function(agent = "claude") {
     stop_websocket_proxy(proxy_process)
   })
 
+  working_dir <- getwd()
+
   shiny::runGadget(
     claude_acp_ui(agent_config$name),
-    claude_acp_server_factory(proxy_port, agent_config$name),
+    claude_acp_server_factory(proxy_port, agent_config$name, working_dir),
     viewer = shiny::browserViewer()
   )
 

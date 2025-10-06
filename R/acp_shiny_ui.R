@@ -111,7 +111,7 @@ claude_acp_ui <- function(agent_name = "Claude Code") {
   )
 }
 
-claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
+claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code", working_dir = getwd()) {
   function(input, output, session) {
     values <- shiny::reactiveValues(
       messages = list(),
@@ -224,7 +224,7 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
           onFulfilled = function(result) {
             message("ACP initialized, creating session...")
             promises::then(
-              acp_create_session(ws_client),
+              acp_create_session(ws_client, cwd = working_dir),
               onFulfilled = function(session_result) {
                 message("Session created: ", session_result$sessionId)
                 shiny::isolate({
