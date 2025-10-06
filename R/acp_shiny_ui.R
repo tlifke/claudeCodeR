@@ -142,10 +142,12 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
         tryCatch({
           message("Initializing ACP WebSocket client to: ", ws_url)
 
+          client_ref <- list(client = NULL)
+
           ws_client <- ACPWebSocketClient$new(
           ws_url = ws_url,
           on_message = create_message_router(
-          client = NULL,
+          client = client_ref,
           ui_callbacks = list(
             on_text = function(text) {
               shiny::isolate({
@@ -192,6 +194,7 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
       )
 
           ws_client$connect()
+          client_ref$client <- ws_client
           values$ws_client <- ws_client
           message("WebSocket connection initiated")
         }, error = function(e) {
@@ -213,14 +216,14 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
         message("WebSocket connected, initializing ACP...")
 
         promises::then(
-          acp_initialize(ws_client, list(
+          acp_initialize(values$ws_client, list(
             name = "RStudio Claude Code",
             version = "0.3.0-acp"
           )),
           onFulfilled = function(result) {
             message("ACP initialized, creating session...")
             promises::then(
-              acp_create_session(ws_client),
+              acp_create_session(values$ws_client),
               onFulfilled = function(session_result) {
                 message("Session created: ", session_result$sessionId)
                 shiny::isolate({

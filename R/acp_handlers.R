@@ -45,7 +45,7 @@ handle_session_update <- function(update, ui_callbacks) {
   invisible(NULL)
 }
 
-handle_permission_request <- function(request, client, auto_approve = TRUE) {
+handle_permission_request <- function(request, client_ref, auto_approve = TRUE) {
   if (is.null(request$params)) {
     message("Permission request missing params")
     return(invisible(NULL))
@@ -63,6 +63,17 @@ handle_permission_request <- function(request, client, auto_approve = TRUE) {
   tool_input <- tool_call$input %||% list()
 
   message("Permission request: ", request_id, " for tool: ", tool_name)
+
+  client <- if (is.list(client_ref) && !is.null(client_ref$client)) {
+    client_ref$client
+  } else {
+    client_ref
+  }
+
+  if (is.null(client)) {
+    message("Client not available for permission approval")
+    return(invisible(NULL))
+  }
 
   if (auto_approve) {
     decision <- "allow_always"
