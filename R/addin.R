@@ -59,7 +59,7 @@ claude_code_addin <- function() {
   shiny::runGadget(
     claude_sdk_ui(auth_config),
     claude_sdk_server_factory(base_url, working_dir, auth_config, sdk_process),
-    viewer = shiny::paneViewer(minHeight = 400)
+    viewer = shiny::browserViewer()#minHeight = 400)
   )
 
   message("Shutting down SDK server...")
