@@ -125,11 +125,22 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
 
     ws_url <- sprintf("ws://localhost:%d", proxy_port)
 
-    shiny::observe({
-      tryCatch({
-        message("Initializing ACP WebSocket client to: ", ws_url)
+    connection_check <- shiny::reactiveVal(0)
 
-        ws_client <- ACPWebSocketClient$new(
+    shiny::observe({
+      connection_check()
+
+      if (!is.null(values$ws_client) && values$connected) {
+        return()
+      }
+
+      shiny::invalidateLater(100)
+
+      if (is.null(values$ws_client)) {
+        tryCatch({
+          message("Initializing ACP WebSocket client to: ", ws_url)
+
+          ws_client <- ACPWebSocketClient$new(
           ws_url = ws_url,
           on_message = create_message_router(
           client = NULL,
@@ -178,12 +189,24 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
         }
       )
 
-      ws_client$connect()
-      values$ws_client <- ws_client
+          ws_client$connect()
+          values$ws_client <- ws_client
+          message("WebSocket connection initiated")
+        }, error = function(e) {
+          message("Error creating WebSocket client: ", e$message)
+          shiny::isolate({
+            values$messages <- c(values$messages, list(list(
+              type = "system",
+              content = paste("Connection error:", e$message)
+            )))
+            values$trigger <- values$trigger + 1
+          })
+        })
+        return()
+      }
 
-      Sys.sleep(1)
-
-      if (ws_client$is_connected()) {
+      if (!is.null(values$ws_client) && !values$connected) {
+        if (values$ws_client$is_connected()) {
         values$connected <- TRUE
         message("WebSocket connected, initializing ACP...")
 
@@ -218,20 +241,8 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
             shiny::showNotification("Failed to initialize ACP", type = "error")
           }
         )
-      } else {
-        message("WebSocket connection failed")
-        shiny::showNotification("Failed to connect to agent", type = "error")
+        }
       }
-      }, error = function(e) {
-        message("Error in observe block: ", e$message)
-        shiny::isolate({
-          values$messages <- c(values$messages, list(list(
-            type = "system",
-            content = paste("Connection error:", e$message)
-          )))
-          values$trigger <- values$trigger + 1
-        })
-      })
     })
 
     output$agent_header <- shiny::renderText({
