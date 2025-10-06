@@ -215,15 +215,17 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
         values$connected <- TRUE
         message("WebSocket connected, initializing ACP...")
 
+        ws_client_copy <- values$ws_client
+
         promises::then(
-          acp_initialize(values$ws_client, list(
+          acp_initialize(ws_client_copy, list(
             name = "RStudio Claude Code",
             version = "0.3.0-acp"
           )),
           onFulfilled = function(result) {
             message("ACP initialized, creating session...")
             promises::then(
-              acp_create_session(values$ws_client),
+              acp_create_session(ws_client_copy),
               onFulfilled = function(session_result) {
                 message("Session created: ", session_result$sessionId)
                 shiny::isolate({
