@@ -126,11 +126,12 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
     ws_url <- sprintf("ws://localhost:%d", proxy_port)
 
     shiny::observe({
-      message("Initializing ACP WebSocket client...")
+      tryCatch({
+        message("Initializing ACP WebSocket client to: ", ws_url)
 
-      ws_client <- ACPWebSocketClient$new(
-        ws_url = ws_url,
-        on_message = create_message_router(
+        ws_client <- ACPWebSocketClient$new(
+          ws_url = ws_url,
+          on_message = create_message_router(
           client = NULL,
           ui_callbacks = list(
             on_text = function(text) {
@@ -221,6 +222,16 @@ claude_acp_server_factory <- function(proxy_port, agent_name = "Claude Code") {
         message("WebSocket connection failed")
         shiny::showNotification("Failed to connect to agent", type = "error")
       }
+      }, error = function(e) {
+        message("Error in observe block: ", e$message)
+        shiny::isolate({
+          values$messages <- c(values$messages, list(list(
+            type = "system",
+            content = paste("Connection error:", e$message)
+          )))
+          values$trigger <- values$trigger + 1
+        })
+      })
     })
 
     output$agent_header <- shiny::renderText({
