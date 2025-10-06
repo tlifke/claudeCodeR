@@ -68,27 +68,26 @@ start_websocket_proxy <- function(agent = "claude", port = 8766) {
 
 check_websocket_ready <- function(port = 8766, timeout = 10) {
   start_time <- Sys.time()
-  ws_url <- sprintf("ws://localhost:%d", port)
 
   while (as.numeric(difftime(Sys.time(), start_time, units = "secs")) < timeout) {
-    tryCatch({
-      test_ws <- websocket::WebSocket$new(ws_url)
-
-      connected <- FALSE
-      test_ws$onOpen(function(event) {
-        connected <<- TRUE
-      })
-
-      Sys.sleep(0.5)
-
-      if (connected) {
-        test_ws$close()
-        return(TRUE)
-      }
-
-      test_ws$close()
+    port_open <- tryCatch({
+      con <- socketConnection(
+        host = "127.0.0.1",
+        port = port,
+        blocking = FALSE,
+        timeout = 1,
+        open = "r+"
+      )
+      close(con)
+      TRUE
     }, error = function(e) {
+      FALSE
     })
+
+    if (port_open) {
+      Sys.sleep(1)
+      return(TRUE)
+    }
 
     Sys.sleep(0.5)
   }
