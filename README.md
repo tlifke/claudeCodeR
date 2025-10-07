@@ -4,28 +4,38 @@ Claude Code AI assistant integration for RStudio.
 
 ![Chat Interface](images/chat-interface.png)
 
-## Installation
+## Quick Start
+
+**1. Install the package:**
 
 ```r
 install.packages("remotes")
 remotes::install_github("tlifke/claudeCodeR")
 ```
 
-## Setup
-
-**1. Authenticate** (choose one):
+**2. Authenticate** (choose one):
 
 ```bash
+# Option 1: Use Claude CLI (recommended)
 claude auth login
 ```
 
-Or set API key in `.Renviron`:
 ```r
+# Option 2: Set API key
 usethis::edit_r_environ()
 # Add: ANTHROPIC_API_KEY=your_api_key_here
+# Restart R session
 ```
 
-**2. Launch**: RStudio → Addins → "Claude Code"
+**3. Launch the SDK-based interface:**
+
+```r
+# From R console
+library(claudeCodeR)
+claude_code_addin()
+
+# Or: RStudio → Addins → "Claude Code"
+```
 
 First launch sets up Python environment (~1 minute). Subsequent launches are instant.
 
