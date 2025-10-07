@@ -162,16 +162,24 @@ Contributions welcome! Please:
 
 ## Version History
 
-### v0.2.0 (Current)
+### v0.3.0 (Current - SDK-based)
+- ✅ Production-ready SDK-based architecture
 - ✅ Multi-turn conversations with full context memory
 - ✅ Persistent SDK client for reliable session handling
 - ✅ Tool execution works correctly (file writes, bash commands)
 - ✅ Streaming responses via SSE
-- ✅ Simplified architecture using Claude Agent SDK
+- ✅ Simplified HTTP/FastAPI architecture using Claude Agent SDK
 
-### v0.1.0 (Archived)
-- Custom ACP protocol implementation
-- Had architectural issues with tool execution
+### v0.2.0 (Archived - ACP WebSocket)
+- WebSocket-based ACP implementation
+- Full functionality after extensive debugging
+- Complex permission handling and message routing
+- See .claude/tasks/acp-websocket-integration/COMPLETED.md
+
+### v0.1.0 (Archived - ACP stdio)
+- Custom ACP protocol over stdio
+- Had architectural issues with async/sync mismatch
+- Tool execution never completed
 - See ISSUES.archive.md for details
 
 ## Acknowledgments

@@ -109,8 +109,9 @@ When using AWS Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`):
 
 ## Important Notes
 
-- The package is at v0.2.0 (complete rewrite from v0.1.0)
-- v0.1.0 used a custom ACP protocol implementation that had issues with tool execution
-- v0.2.0 uses the official Claude Agent SDK with HTTP/SSE instead of stdio
+- The package is at v0.3.0 (SDK-based production version)
+- v0.1.0 used a custom ACP stdio implementation (had async/sync mismatch issues)
+- v0.2.0 used ACP WebSocket protocol (worked but required extensive debugging)
+- v0.3.0 uses the official Claude Agent SDK with HTTP/SSE (current recommended approach)
 - The `inst/python/` directory contains bundled Python files for package distribution
 - The main development directory is `python/` (not `inst/python/`)

@@ -1,7 +1,7 @@
 Package: claudeCodeR
 Type: Package
 Title: Claude Code Integration for RStudio
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: person("Tyler", "Lifke", email = "your.email@example.com", role = c("aut", "cre"))
 Description: Provides Claude Code AI assistant integration for RStudio via the Claude Agent SDK.
     Includes an interactive Shiny gadget interface for chatting with Claude and applying
