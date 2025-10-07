@@ -8,7 +8,10 @@ ClaudeSDKClient <- function(base_url = "http://127.0.0.1:8765") {
   )
 }
 
-initialize_session <- function(client, working_dir, auth_config) {
+initialize_session <- function(client, working_dir, auth_config,
+                               allowed_tools = NULL, disallowed_tools = NULL,
+                               model = NULL, system_prompt = NULL,
+                               max_turns = NULL, env = NULL, add_dirs = NULL) {
   url <- paste0(client$base_url, "/initialize")
 
   body <- list(
@@ -27,6 +30,14 @@ initialize_session <- function(client, working_dir, auth_config) {
       body$aws_profile <- auth_config$aws_profile
     }
   }
+
+  if (!is.null(allowed_tools)) body$allowed_tools <- allowed_tools
+  if (!is.null(disallowed_tools)) body$disallowed_tools <- disallowed_tools
+  if (!is.null(model)) body$model <- model
+  if (!is.null(system_prompt)) body$system_prompt <- system_prompt
+  if (!is.null(max_turns)) body$max_turns <- max_turns
+  if (!is.null(env)) body$env <- env
+  if (!is.null(add_dirs)) body$add_dirs <- add_dirs
 
   response <- httr::POST(
     url,
@@ -58,7 +69,8 @@ parse_sse_line <- function(line) {
 }
 
 query_streaming <- function(client, prompt, context = NULL,
-                           on_text = NULL, on_permission = NULL, on_complete = NULL, on_error = NULL) {
+                           on_text = NULL, on_permission = NULL, on_complete = NULL, on_error = NULL,
+                           on_result = NULL, on_thinking = NULL, on_tool_use = NULL) {
   if (!client$session_active) {
     stop("Session not initialized. Call initialize_session() first.")
   }
@@ -96,6 +108,12 @@ query_streaming <- function(client, prompt, context = NULL,
             result_text <- paste0("\n```\n", event_data$content, "\n```\n")
             accumulated_text <<- c(accumulated_text, result_text)
             if (!is.null(on_text)) on_text(result_text)
+          } else if (current_event == "thinking") {
+            if (!is.null(on_thinking)) on_thinking(event_data$thinking, event_data$signature)
+          } else if (current_event == "tool_use") {
+            if (!is.null(on_tool_use)) on_tool_use(event_data$name, event_data$id, event_data$input)
+          } else if (current_event == "result") {
+            if (!is.null(on_result)) on_result(event_data)
           } else if (current_event == "permission_request") {
             if (!is.null(on_permission)) {
               on_permission(event_data$request_id, event_data$tool_name, event_data$input)
@@ -103,7 +121,9 @@ query_streaming <- function(client, prompt, context = NULL,
           } else if (current_event == "complete") {
             if (!is.null(on_complete)) on_complete()
           } else if (current_event == "error") {
-            if (!is.null(on_error)) on_error(event_data$error)
+            error_message <- event_data$message %||% event_data$error
+            error_type <- event_data$error_type %||% "unknown"
+            if (!is.null(on_error)) on_error(error_message, error_type)
           }
 
           current_event <<- NULL
