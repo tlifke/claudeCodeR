@@ -5,8 +5,8 @@ Version: 0.2.0
 Authors@R: person("Tyler", "Lifke", email = "your.email@example.com", role = c("aut", "cre"))
 Description: Provides Claude Code AI assistant integration for RStudio via the Claude Agent SDK.
     Includes an interactive Shiny gadget interface for chatting with Claude and applying
-    code modifications directly in the RStudio editor. Supports both Anthropic API and
-    AWS Bedrock authentication.
+    code modifications directly in the RStudio editor. Supports Anthropic API key and
+    Claude CLI authentication methods.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
