@@ -263,7 +263,9 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
                     } else if (current_event == "complete") {
                       if (!is.null(on_complete)) on_complete()
                     } else if (current_event == "error") {
-                      if (!is.null(on_error)) on_error(event_data$error)
+                      error_message <- event_data$message %||% event_data$error
+                      error_type <- event_data$error_type %||% "unknown"
+                      if (!is.null(on_error)) on_error(error_message, error_type)
                     }
 
                     current_event <<- NULL
@@ -350,8 +352,8 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
                 cat(jsonlite::toJSON(msg, auto_unbox = TRUE), "\n",
                     file = message_file, append = TRUE)
               },
-              on_error = function(error) {
-                msg <- list(type = "error", message = error)
+              on_error = function(error_message, error_type) {
+                msg <- list(type = "error", message = error_message, error_type = error_type)
                 cat(jsonlite::toJSON(msg, auto_unbox = TRUE), "\n",
                     file = message_file, append = TRUE)
               }
