@@ -12,7 +12,7 @@ acp_initialize <- function(client, client_info) {
 acp_create_session <- function(client, cwd = getwd()) {
   client$send_request("session/new", list(
     cwd = cwd,
-    mcpServers = structure(list(), names = character())
+    mcpServers = list()
   ))
 }
 
