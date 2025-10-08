@@ -1,4 +1,4 @@
-export(claude_code_addin)
+exportPattern("^[[:alpha:]]+")
 importFrom(R6, R6Class)
 importFrom(processx, process)
 importFrom(jsonlite, fromJSON, toJSON)
