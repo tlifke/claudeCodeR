@@ -94,14 +94,17 @@ claude_code_addin_bg <- function() {
 
   if (!bg_process$is_alive()) {
     stderr_output <- bg_process$read_error()
-    stop("Background process failed: ", stderr_output)
+    stdout_output <- bg_process$read_output()
+    stop("Background process failed:\nSTDERR: ", stderr_output, "\nSTDOUT: ", stdout_output)
   }
 
   app_url <- paste0("http://127.0.0.1:", app_port)
 
   if (!wait_for_app(app_url, timeout = 10)) {
+    stderr_output <- bg_process$read_error()
+    stdout_output <- bg_process$read_output()
     bg_process$kill()
-    stop("Shiny app failed to start")
+    stop("Shiny app failed to start.\nSTDERR: ", stderr_output, "\nSTDOUT: ", stdout_output)
   }
 
   message("Claude Code is ready!")
