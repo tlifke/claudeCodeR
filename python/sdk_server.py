@@ -213,10 +213,16 @@ async def can_use_tool_handler(
     )
     print(f"[PERMISSION] Added to queue successfully", file=sys.stderr)
 
-    print(f"[PERMISSION] Waiting for approval...", file=sys.stderr)
-    result = await future
+    print(f"[PERMISSION] Waiting for approval (60s timeout)...", file=sys.stderr)
 
-    del session_state.pending_permissions[request_id]
+    try:
+        result = await asyncio.wait_for(future, timeout=60.0)
+    except asyncio.TimeoutError:
+        print(f"[PERMISSION] TIMEOUT after 60s, auto-denying: {request_id}", file=sys.stderr)
+        result = False
+
+    if request_id in session_state.pending_permissions:
+        del session_state.pending_permissions[request_id]
     print(f"[PERMISSION] Resolved: {request_id} -> {result}", file=sys.stderr)
 
     if result:

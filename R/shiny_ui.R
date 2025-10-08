@@ -127,8 +127,12 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
     })
 
     shiny::observeEvent(values$show_permission_modal, {
-      message("[MODAL OBSERVER] show_permission_modal changed to: ", values$show_permission_modal)
-      message("[MODAL OBSERVER] pending_permission is null? ", is.null(values$pending_permission))
+      timestamp <- format(Sys.time(), "%H:%M:%OS3")
+      message(sprintf("[MODAL OBSERVER %s] show_permission_modal changed to: %s", timestamp, values$show_permission_modal))
+      message(sprintf("[MODAL OBSERVER %s] pending_permission is null? %s", timestamp, is.null(values$pending_permission)))
+      if (!is.null(values$pending_permission)) {
+        message(sprintf("[MODAL OBSERVER %s] pending_permission request_id: %s", timestamp, values$pending_permission$request_id))
+      }
 
       if (values$show_permission_modal && !is.null(values$pending_permission)) {
         message("[MODAL OBSERVER] Showing permission modal!")
@@ -408,20 +412,29 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
 
             for (line in new_lines) {
               msg <- jsonlite::fromJSON(line)
+              message("[POLL] Read message from file, type: ", msg$type)
 
               if (msg$type == "text") {
                 values$streaming_message <- paste0(values$streaming_message, msg$content)
                 values$trigger <- values$trigger + 1
 
               } else if (msg$type == "permission_request") {
-                message("[MAIN PROCESS] Received permission_request from message file!")
-                message("[MAIN PROCESS] Request ID: ", msg$request_id)
-                message("[MAIN PROCESS] Tool: ", msg$tool_name)
-                message("[MAIN PROCESS] Input: ", jsonlite::toJSON(msg$input, auto_unbox = TRUE))
-                message("[MAIN PROCESS] Setting pending_permission and triggering modal...")
+                timestamp <- format(Sys.time(), "%H:%M:%OS3")
+                message(sprintf("[MAIN PROCESS %s] ========== PERMISSION REQUEST ==========", timestamp))
+                message(sprintf("[MAIN PROCESS %s] Request ID: %s", timestamp, msg$request_id))
+                message(sprintf("[MAIN PROCESS %s] Tool: %s", timestamp, msg$tool_name))
+                message(sprintf("[MAIN PROCESS %s] Input: %s", timestamp, jsonlite::toJSON(msg$input, auto_unbox = TRUE)))
+                message(sprintf("[MAIN PROCESS %s] Current show_permission_modal: %s", timestamp, values$show_permission_modal))
+                message(sprintf("[MAIN PROCESS %s] Current pending_permission null?: %s", timestamp, is.null(values$pending_permission)))
+
                 values$pending_permission <- msg
+                message(sprintf("[MAIN PROCESS %s] Set pending_permission", timestamp))
+
+                values$show_permission_modal <- FALSE
+                Sys.sleep(0.01)
                 values$show_permission_modal <- TRUE
-                message("[MAIN PROCESS] Modal trigger set!")
+                message(sprintf("[MAIN PROCESS %s] Toggled show_permission_modal (FALSE->TRUE) to force observer trigger", timestamp))
+                message(sprintf("[MAIN PROCESS %s] =======================================", timestamp))
 
               } else if (msg$type == "complete") {
                 message("Query complete")
