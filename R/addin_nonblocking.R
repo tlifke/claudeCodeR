@@ -42,13 +42,7 @@ claude_code_addin_bg <- function() {
 
   working_dir <- get_working_dir()
   port <- 8765
-  app_port <- 3838
-
-  killed_ports <- kill_processes_on_ports(c(port, app_port))
-  if (killed_ports > 0) {
-    message("Cleaned up ", killed_ports, " existing server process(es)")
-    Sys.sleep(1)
-  }
+  app_port <- 3838  # Port for Shiny app
 
   message("Starting Claude Code in background...")
 
@@ -100,17 +94,14 @@ claude_code_addin_bg <- function() {
 
   if (!bg_process$is_alive()) {
     stderr_output <- bg_process$read_error()
-    stdout_output <- bg_process$read_output()
-    stop("Background process failed:\nSTDERR: ", stderr_output, "\nSTDOUT: ", stdout_output)
+    stop("Background process failed: ", stderr_output)
   }
 
   app_url <- paste0("http://127.0.0.1:", app_port)
 
   if (!wait_for_app(app_url, timeout = 10)) {
-    stderr_output <- bg_process$read_error()
-    stdout_output <- bg_process$read_output()
     bg_process$kill()
-    stop("Shiny app failed to start.\nSTDERR: ", stderr_output, "\nSTDOUT: ", stdout_output)
+    stop("Shiny app failed to start")
   }
 
   message("Claude Code is ready!")
@@ -125,81 +116,19 @@ claude_code_addin_bg <- function() {
 }
 
 claude_code_stop <- function() {
-  stopped_anything <- FALSE
-
   if (exists(".claude_code_process", envir = .GlobalEnv)) {
     proc <- get(".claude_code_process", envir = .GlobalEnv)
     if (proc$is_alive()) {
       message("Stopping Claude Code background process...")
       proc$kill()
-      stopped_anything <- TRUE
+      rm(".claude_code_process", envir = .GlobalEnv)
+      message("Claude Code stopped")
+    } else {
+      message("Claude Code process is not running")
     }
-    rm(".claude_code_process", envir = .GlobalEnv)
-  }
-
-  killed_ports <- kill_processes_on_ports(c(8765, 3838))
-  killed_callr <- kill_callr_processes()
-
-  if (killed_ports > 0) {
-    message("Killed ", killed_ports, " orphaned server process(es)")
-    stopped_anything <- TRUE
-  }
-
-  if (killed_callr > 0) {
-    message("Killed ", killed_callr, " stuck background process(es)")
-    stopped_anything <- TRUE
-  }
-
-  if (stopped_anything) {
-    message("Claude Code stopped")
   } else {
-    message("No Claude Code processes found")
+    message("No Claude Code process found")
   }
-
-  invisible(NULL)
-}
-
-claude_code_reset <- function() {
-  message("Resetting Claude Code (killing all related processes)...")
-  claude_code_stop()
-  message("Reset complete. You can now restart Claude Code.")
-  invisible(NULL)
-}
-
-kill_processes_on_ports <- function(ports) {
-  killed_count <- 0
-
-  for (port in ports) {
-    result <- tryCatch({
-      system(paste0("lsof -ti :", port, " | xargs kill -9 2>/dev/null"),
-             ignore.stdout = TRUE,
-             ignore.stderr = TRUE)
-      0
-    }, error = function(e) 1)
-
-    if (result == 0) {
-      killed_count <- killed_count + 1
-    }
-  }
-
-  killed_count
-}
-
-kill_callr_processes <- function() {
-  result <- tryCatch({
-    pids_output <- system("ps aux | grep 'callr-scr' | grep -v grep | awk '{print $2}'",
-                          intern = TRUE, ignore.stderr = TRUE)
-
-    if (length(pids_output) > 0 && nchar(pids_output[1]) > 0) {
-      pids <- trimws(pids_output)
-      system(paste0("kill -9 ", paste(pids, collapse = " "), " 2>/dev/null"),
-             ignore.stdout = TRUE, ignore.stderr = TRUE)
-      return(length(pids))
-    }
-    0
-  }, error = function(e) 0)
-
-  result
 }
 
 wait_for_app <- function(url, timeout = 10) {

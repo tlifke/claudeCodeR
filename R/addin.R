@@ -59,11 +59,6 @@ claude_code_addin_blocking <- function() {
   port <- 8765
   base_url <- paste0("http://127.0.0.1:", port)
 
-  result <- tryCatch({
-    system(paste0("lsof -ti :", port, " | xargs kill -9 2>/dev/null"),
-           ignore.stdout = TRUE, ignore.stderr = TRUE)
-  }, error = function(e) NULL)
-
   message("Starting Claude SDK server...")
   sdk_process <- start_sdk_server(working_dir, auth_config, port = port)
 

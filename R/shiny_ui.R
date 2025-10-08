@@ -52,16 +52,6 @@ claude_sdk_ui <- function(auth_config) {
           .streaming {
             border-left: 3px solid #ff9800;
           }
-        ")),
-        shiny::tags$script(shiny::HTML("
-          $(document).on('keydown', '#user_prompt', function(e) {
-            if (e.key === 'Enter' && e.shiftKey) {
-              e.preventDefault();
-              setTimeout(function() {
-                $('#send_prompt').click();
-              }, 50);
-            }
-          });
         "))
       ),
       shiny::div(
@@ -419,32 +409,14 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
                   add_agent_message(values, values$streaming_message)
                 }
                 values$streaming_message <- ""
-
-                if (!is.null(bg_process_ref) && bg_process_ref$is_alive()) {
-                  message("Terminating background process...")
-                  bg_process_ref$kill()
-                }
                 values$bg_process <- NULL
-
-                if (!is.null(message_file) && file.exists(message_file)) {
-                  unlink(message_file)
-                }
                 return()
 
               } else if (msg$type == "error") {
                 message("Query error: ", msg$message)
                 add_system_message(values, paste("Error:", msg$message))
                 values$streaming_message <- ""
-
-                if (!is.null(bg_process_ref) && bg_process_ref$is_alive()) {
-                  message("Terminating background process after error...")
-                  bg_process_ref$kill()
-                }
                 values$bg_process <- NULL
-
-                if (!is.null(message_file) && file.exists(message_file)) {
-                  unlink(message_file)
-                }
                 return()
               }
             }
