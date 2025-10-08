@@ -52,6 +52,14 @@ claude_sdk_ui <- function(auth_config) {
           .streaming {
             border-left: 3px solid #ff9800;
           }
+        ")),
+        shiny::tags$script(shiny::HTML("
+          $(document).on('keydown', '#user_prompt', function(e) {
+            if (e.key === 'Enter' && e.shiftKey) {
+              e.preventDefault();
+              $('#send_prompt').click();
+            }
+          });
         "))
       ),
       shiny::div(
