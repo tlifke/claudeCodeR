@@ -42,7 +42,13 @@ claude_code_addin_bg <- function() {
 
   working_dir <- get_working_dir()
   port <- 8765
-  app_port <- 3838  # Port for Shiny app
+  app_port <- 3838
+
+  killed_ports <- kill_processes_on_ports(c(port, app_port))
+  if (killed_ports > 0) {
+    message("Cleaned up ", killed_ports, " existing server process(es)")
+    Sys.sleep(1)
+  }
 
   message("Starting Claude Code in background...")
 
@@ -119,19 +125,51 @@ claude_code_addin_bg <- function() {
 }
 
 claude_code_stop <- function() {
+  stopped_anything <- FALSE
+
   if (exists(".claude_code_process", envir = .GlobalEnv)) {
     proc <- get(".claude_code_process", envir = .GlobalEnv)
     if (proc$is_alive()) {
       message("Stopping Claude Code background process...")
       proc$kill()
-      rm(".claude_code_process", envir = .GlobalEnv)
-      message("Claude Code stopped")
-    } else {
-      message("Claude Code process is not running")
+      stopped_anything <- TRUE
     }
-  } else {
-    message("No Claude Code process found")
+    rm(".claude_code_process", envir = .GlobalEnv)
   }
+
+  killed_ports <- kill_processes_on_ports(c(8765, 3838))
+
+  if (killed_ports > 0) {
+    message("Killed ", killed_ports, " orphaned server process(es)")
+    stopped_anything <- TRUE
+  }
+
+  if (stopped_anything) {
+    message("Claude Code stopped")
+  } else {
+    message("No Claude Code processes found")
+  }
+
+  invisible(NULL)
+}
+
+kill_processes_on_ports <- function(ports) {
+  killed_count <- 0
+
+  for (port in ports) {
+    result <- tryCatch({
+      system(paste0("lsof -ti :", port, " | xargs kill -9 2>/dev/null"),
+             ignore.stdout = TRUE,
+             ignore.stderr = TRUE)
+      0
+    }, error = function(e) 1)
+
+    if (result == 0) {
+      killed_count <- killed_count + 1
+    }
+  }
+
+  killed_count
 }
 
 wait_for_app <- function(url, timeout = 10) {
