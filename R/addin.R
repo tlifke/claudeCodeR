@@ -17,6 +17,8 @@ claude_code_addin_blocking <- function() {
     stop("This addin requires RStudio")
   }
 
+  kill_existing_sdk_servers()
+
   auth_config <- detect_auth_method()
 
   if (is.null(auth_config)) {

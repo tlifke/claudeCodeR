@@ -137,11 +137,13 @@ async def initialize(req: InitializeRequest):
             print(f"[SDK STDERR] {message}", file=sys.stderr)
 
         options_dict = {
-            "permission_mode": session_state.permission_mode,
+            "permission_mode": "default",
             "can_use_tool": can_use_tool_handler,
             "stderr": stderr_callback,
             "extra_args": {"debug-to-stderr": None}
         }
+        print(f"[INIT] Set permission_mode='default' to enable can_use_tool callback", file=sys.stderr)
+        print(f"[INIT] R client requested permission_mode: {session_state.permission_mode}", file=sys.stderr)
 
         if session_state.model:
             options_dict["model"] = session_state.model
@@ -161,11 +163,19 @@ async def initialize(req: InitializeRequest):
         if session_state.add_dirs:
             options_dict["add_dirs"] = session_state.add_dirs
 
-        options = ClaudeAgentOptions(**options_dict)
-        session_state.sdk_client = ClaudeSDKClient(options)
-        await session_state.sdk_client.connect()
+        print(f"[INIT] Creating ClaudeAgentOptions with: {options_dict.keys()}", file=sys.stderr)
+        print(f"[INIT] can_use_tool callback is: {options_dict.get('can_use_tool')}", file=sys.stderr)
+        print(f"[INIT] permission_mode is: {options_dict.get('permission_mode')}", file=sys.stderr)
 
-        print(f"SDK client created and connected", file=sys.stderr)
+        options = ClaudeAgentOptions(**options_dict)
+        print(f"[INIT] ClaudeAgentOptions created", file=sys.stderr)
+        print(f"[INIT] Options object: {options}", file=sys.stderr)
+
+        session_state.sdk_client = ClaudeSDKClient(options)
+        print(f"[INIT] ClaudeSDKClient created", file=sys.stderr)
+        print(f"[INIT] Calling sdk_client.connect()...", file=sys.stderr)
+        await session_state.sdk_client.connect()
+        print(f"[INIT] SDK client created and connected successfully!", file=sys.stderr)
 
         session_state.session_active = True
 
@@ -184,26 +194,37 @@ async def initialize(req: InitializeRequest):
 async def can_use_tool_handler(
     tool_name: str, input_data: Dict[str, Any], context
 ) -> PermissionResultAllow | PermissionResultDeny:
+    print(f"[PERMISSION] can_use_tool_handler CALLED for tool: {tool_name}", file=sys.stderr)
+    print(f"[PERMISSION] Input data: {input_data}", file=sys.stderr)
+    print(f"[PERMISSION] Permission mode: {session_state.permission_mode}", file=sys.stderr)
+
+    if not session_state.permission_queue:
+        print(f"[PERMISSION] No permission queue (not in query mode) - auto-approving", file=sys.stderr)
+        return PermissionResultAllow()
+
     request_id = f"perm_{int(asyncio.get_event_loop().time() * 1000)}_{tool_name}"
     future = asyncio.Future()
     session_state.pending_permissions[request_id] = future
 
-    print(f"Permission request: {request_id} for tool {tool_name}", file=sys.stderr)
+    print(f"[PERMISSION] Created request: {request_id}", file=sys.stderr)
+    print(f"[PERMISSION] Adding to permission queue", file=sys.stderr)
+    await session_state.permission_queue.put(
+        {"request_id": request_id, "tool_name": tool_name, "input": input_data}
+    )
+    print(f"[PERMISSION] Added to queue successfully", file=sys.stderr)
 
-    if session_state.permission_queue:
-        await session_state.permission_queue.put(
-            {"request_id": request_id, "tool_name": tool_name, "input": input_data}
-        )
-
+    print(f"[PERMISSION] Waiting for approval...", file=sys.stderr)
     result = await future
 
     del session_state.pending_permissions[request_id]
-    print(f"Permission resolved: {request_id} -> {result}", file=sys.stderr)
+    print(f"[PERMISSION] Resolved: {request_id} -> {result}", file=sys.stderr)
 
     if result:
-        return PermissionResultAllow()
+        print(f"[PERMISSION] Returning PermissionResultAllow with updated_input", file=sys.stderr)
+        return PermissionResultAllow(updated_input=input_data)
     else:
-        return PermissionResultDeny()
+        print(f"[PERMISSION] Returning PermissionResultDeny", file=sys.stderr)
+        return PermissionResultDeny(message="User denied permission")
 
 
 @app.post("/approve")
@@ -384,9 +405,11 @@ async def query_agent(req: QueryRequest):
                                             file=sys.stderr,
                                         )
 
+                print(f"[QUERY] Query completed, emitting complete event", file=sys.stderr)
                 await event_queue.put(
                     {"event": "complete", "data": json.dumps({"status": "complete"})}
                 )
+                print(f"[QUERY] Complete event added to queue", file=sys.stderr)
 
             except CLINotFoundError as e:
                 print(f"CLI not found error: {str(e)}", file=sys.stderr)

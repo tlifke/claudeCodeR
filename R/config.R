@@ -4,7 +4,7 @@ detect_auth_method <- function() {
     return(list(
       method = "api_key",
       api_key = api_key,
-      permission_mode = "acceptEdits"
+      permission_mode = "default"
     ))
   }
 
@@ -21,14 +21,14 @@ detect_auth_method <- function() {
       aws_region = aws_region,
       aws_profile = if (nchar(aws_profile) > 0) aws_profile else NULL,
       has_direct_creds = has_direct_creds,
-      permission_mode = "acceptEdits"
+      permission_mode = "default"
     ))
   }
 
   if (check_claude_cli_auth()) {
     return(list(
       method = "subscription",
-      permission_mode = "acceptEdits"
+      permission_mode = "default"
     ))
   }
 
@@ -226,17 +226,22 @@ setup_python_venv <- function() {
 start_sdk_server <- function(working_dir, auth_config, port = 8765) {
   python_bin <- setup_python_venv()
 
-  python_script <- system.file("python/sdk_server.py", package = "claudeCodeR")
-
-  if (!file.exists(python_script)) {
-    python_script <- file.path(
-      find.package("claudeCodeR"),
-      "..",
-      "..",
-      "r-studio-claude-code-addin",
-      "python",
-      "sdk_server.py"
-    )
+  dev_script <- file.path(working_dir, "python", "sdk_server.py")
+  if (file.exists(dev_script)) {
+    python_script <- dev_script
+    message("Using development version of sdk_server.py from: ", python_script)
+  } else {
+    python_script <- system.file("python/sdk_server.py", package = "claudeCodeR")
+    if (!file.exists(python_script)) {
+      python_script <- file.path(
+        find.package("claudeCodeR"),
+        "..",
+        "..",
+        "r-studio-claude-code-addin",
+        "python",
+        "sdk_server.py"
+      )
+    }
   }
 
   if (!file.exists(python_script)) {
@@ -280,12 +285,25 @@ start_sdk_server <- function(working_dir, auth_config, port = 8765) {
     }
   }
 
+  log_dir <- file.path(working_dir, "logs")
+  if (!dir.exists(log_dir)) {
+    dir.create(log_dir, recursive = TRUE)
+  }
+
+  timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+  stdout_log <- file.path(log_dir, paste0("sdk_server_stdout_", timestamp, ".log"))
+  stderr_log <- file.path(log_dir, paste0("sdk_server_stderr_", timestamp, ".log"))
+
+  message("SDK server logs will be written to:")
+  message("  stdout: ", stdout_log)
+  message("  stderr: ", stderr_log)
+
   proc <- processx::process$new(
     python_bin,
     c(python_script),
     env = env_vars,
-    stdout = "|",
-    stderr = "|",
+    stdout = stdout_log,
+    stderr = stderr_log,
     cleanup = TRUE
   )
 
@@ -329,4 +347,28 @@ wait_for_server <- function(base_url, timeout = 10, interval = 0.5) {
   }
 
   FALSE
+}
+
+kill_existing_sdk_servers <- function() {
+  if (Sys.info()["sysname"] == "Windows") {
+    system("taskkill /F /IM python.exe /FI \"WINDOWTITLE eq *sdk_server.py*\" 2>nul",
+           ignore.stdout = TRUE, ignore.stderr = TRUE)
+  } else {
+    result <- tryCatch({
+      pids <- system("ps aux | grep sdk_server.py | grep -v grep | awk '{print $2}'",
+                     intern = TRUE, ignore.stderr = TRUE)
+
+      if (length(pids) > 0 && pids[1] != "") {
+        message("Found ", length(pids), " existing SDK server process(es), killing...")
+        for (pid in pids) {
+          system2("kill", c("-9", pid), stdout = FALSE, stderr = FALSE)
+        }
+        Sys.sleep(0.5)
+        return(TRUE)
+      }
+      FALSE
+    }, error = function(e) {
+      FALSE
+    })
+  }
 }

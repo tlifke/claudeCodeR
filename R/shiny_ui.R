@@ -127,7 +127,11 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
     })
 
     shiny::observeEvent(values$show_permission_modal, {
+      message("[MODAL OBSERVER] show_permission_modal changed to: ", values$show_permission_modal)
+      message("[MODAL OBSERVER] pending_permission is null? ", is.null(values$pending_permission))
+
       if (values$show_permission_modal && !is.null(values$pending_permission)) {
+        message("[MODAL OBSERVER] Showing permission modal!")
         msg <- values$pending_permission
         shiny::showModal(shiny::modalDialog(
           title = "Permission Request",
@@ -140,6 +144,9 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
           easyClose = FALSE
         ))
         values$show_permission_modal <- FALSE
+        message("[MODAL OBSERVER] Modal displayed and flag reset")
+      } else {
+        message("[MODAL OBSERVER] Not showing modal (conditions not met)")
       }
     })
 
@@ -327,6 +334,11 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
                 accumulated_text <<- c(accumulated_text, text)
               },
               on_permission = function(request_id, tool_name, input_data) {
+                cat("[BG PROCESS] on_permission callback triggered!\n", file = stderr())
+                cat("[BG PROCESS] Request ID:", request_id, "\n", file = stderr())
+                cat("[BG PROCESS] Tool:", tool_name, "\n", file = stderr())
+                cat("[BG PROCESS] Input:", jsonlite::toJSON(input_data, auto_unbox = TRUE), "\n", file = stderr())
+
                 msg <- list(
                   type = "permission_request",
                   request_id = request_id,
@@ -335,8 +347,10 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
                 )
                 cat(jsonlite::toJSON(msg, auto_unbox = TRUE), "\n",
                     file = message_file, append = TRUE)
+                cat("[BG PROCESS] Wrote permission request to message file\n", file = stderr())
 
                 response_file <- paste0(message_file, ".response.", request_id)
+                cat("[BG PROCESS] Waiting for response file:", response_file, "\n", file = stderr())
 
                 while (!file.exists(response_file)) {
                   Sys.sleep(0.1)
@@ -344,6 +358,7 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
 
                 response <- readLines(response_file, warn = FALSE)
                 unlink(response_file)
+                cat("[BG PROCESS] Got response:", response, "\n", file = stderr())
 
                 invisible(NULL)
               },
@@ -399,9 +414,14 @@ claude_sdk_server_factory <- function(base_url, working_dir, auth_config, sdk_pr
                 values$trigger <- values$trigger + 1
 
               } else if (msg$type == "permission_request") {
-                message("Permission request: ", msg$request_id, " for ", msg$tool_name)
+                message("[MAIN PROCESS] Received permission_request from message file!")
+                message("[MAIN PROCESS] Request ID: ", msg$request_id)
+                message("[MAIN PROCESS] Tool: ", msg$tool_name)
+                message("[MAIN PROCESS] Input: ", jsonlite::toJSON(msg$input, auto_unbox = TRUE))
+                message("[MAIN PROCESS] Setting pending_permission and triggering modal...")
                 values$pending_permission <- msg
                 values$show_permission_modal <- TRUE
+                message("[MAIN PROCESS] Modal trigger set!")
 
               } else if (msg$type == "complete") {
                 message("Query complete")

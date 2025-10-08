@@ -115,8 +115,14 @@ query_streaming <- function(client, prompt, context = NULL,
           } else if (current_event == "result") {
             if (!is.null(on_result)) on_result(event_data)
           } else if (current_event == "permission_request") {
+            message("[R CLIENT] Received permission_request event!")
+            message("[R CLIENT] Request ID: ", event_data$request_id)
+            message("[R CLIENT] Tool: ", event_data$tool_name)
+            message("[R CLIENT] on_permission callback is: ", if (!is.null(on_permission)) "SET" else "NULL")
             if (!is.null(on_permission)) {
+              message("[R CLIENT] Calling on_permission callback...")
               on_permission(event_data$request_id, event_data$tool_name, event_data$input)
+              message("[R CLIENT] on_permission callback completed")
             }
           } else if (current_event == "complete") {
             if (!is.null(on_complete)) on_complete()
