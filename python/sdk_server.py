@@ -137,7 +137,8 @@ async def initialize(req: InitializeRequest):
             print(f"[SDK STDERR] {message}", file=sys.stderr)
 
         options_dict = {
-            "permission_mode": "acceptEdits",
+            "permission_mode": session_state.permission_mode,
+            "can_use_tool": can_use_tool_handler,
             "stderr": stderr_callback,
             "extra_args": {"debug-to-stderr": None}
         }
