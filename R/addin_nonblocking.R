@@ -138,9 +138,15 @@ claude_code_stop <- function() {
   }
 
   killed_ports <- kill_processes_on_ports(c(8765, 3838))
+  killed_callr <- kill_callr_processes()
 
   if (killed_ports > 0) {
     message("Killed ", killed_ports, " orphaned server process(es)")
+    stopped_anything <- TRUE
+  }
+
+  if (killed_callr > 0) {
+    message("Killed ", killed_callr, " stuck background process(es)")
     stopped_anything <- TRUE
   }
 
@@ -150,6 +156,13 @@ claude_code_stop <- function() {
     message("No Claude Code processes found")
   }
 
+  invisible(NULL)
+}
+
+claude_code_reset <- function() {
+  message("Resetting Claude Code (killing all related processes)...")
+  claude_code_stop()
+  message("Reset complete. You can now restart Claude Code.")
   invisible(NULL)
 }
 
@@ -170,6 +183,23 @@ kill_processes_on_ports <- function(ports) {
   }
 
   killed_count
+}
+
+kill_callr_processes <- function() {
+  result <- tryCatch({
+    pids_output <- system("ps aux | grep 'callr-scr' | grep -v grep | awk '{print $2}'",
+                          intern = TRUE, ignore.stderr = TRUE)
+
+    if (length(pids_output) > 0 && nchar(pids_output[1]) > 0) {
+      pids <- trimws(pids_output)
+      system(paste0("kill -9 ", paste(pids, collapse = " "), " 2>/dev/null"),
+             ignore.stdout = TRUE, ignore.stderr = TRUE)
+      return(length(pids))
+    }
+    0
+  }, error = function(e) 0)
+
+  result
 }
 
 wait_for_app <- function(url, timeout = 10) {
